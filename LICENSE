@@ -19,3 +19,10 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+----------------------------------------------------------------------
+
+This project includes code from other MIT-licensed projects, including:
+
+- Portions of code from ts-autotag.nvim by Donatas (c) 2024, licensed under MIT.
+  Repository: https://github.com/tronikelis/ts-autotag.nvim
