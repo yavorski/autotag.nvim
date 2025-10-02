@@ -1,0 +1,200 @@
+local tsc = require("autotag.ts-config")
+local Config = require("autotag.config")
+
+local M = {}
+
+---@param bufnr integer
+---@return string
+function M.get_aliased_lang(bufnr)
+  local filetype = vim.api.nvim_get_option_value("filetype", { buf = bufnr })
+  return Config.options.aliases[filetype] or filetype
+end
+
+---@param opts vim.treesitter.get_node.Opts
+---@param types string[]
+---@param depth integer
+---@return TSNode?
+function M.get_node(opts, types, depth)
+  -- Get aliased language if any
+  local aliased_lang = M.get_aliased_lang(opts.bufnr)
+  opts = vim.tbl_extend("force", opts, { lang = aliased_lang })
+
+  -- If no pos is provided, use current cursor position
+  if not opts.pos then
+    local cursor = vim.api.nvim_win_get_cursor(0)
+    opts.pos = { cursor[1] - 1, cursor[2] }
+  end
+
+  local current = vim.treesitter.get_node(opts)
+  if not current then
+    return
+  end
+
+  return M.find_parent(current, function(n)
+    return vim.list_contains(types, n:type())
+  end, depth)
+end
+
+---@param opts vim.treesitter.get_node.Opts
+---@param depth integer
+---@return TSNode?
+function M.get_opening_node(opts, depth)
+  return M.get_node(opts, tsc.opening_node_types, depth)
+end
+
+---@param opts vim.treesitter.get_node.Opts
+---@param depth integer
+---@return TSNode?
+function M.get_closing_node(opts, depth)
+  return M.get_node(opts, tsc.closing_node_types, depth)
+end
+
+---@param node TSNode?
+---@return TSNode?
+function M.get_node_identifier(node)
+  return M.find_first_child(node, function(n)
+    return vim.list_contains(tsc.identifier_node_types, n:type())
+  end)
+end
+
+---@param node TSNode?
+---@param predicate fun(node: TSNode): boolean
+---@param depth integer
+---@return TSNode?
+function M.find_parent(node, predicate, depth)
+  if not node then
+    return
+  end
+
+  if predicate(node) then
+    return node
+  end
+
+  if depth == 0 then
+    return
+  end
+  depth = depth - 1
+
+  return M.find_parent(node:parent(), predicate, depth)
+end
+
+---@param node TSNode?
+---@param predicate fun(node: TSNode): boolean
+---@return TSNode?
+function M.find_first_child(node, predicate)
+  if not node then
+    return
+  end
+
+  if predicate(node) then
+    return node
+  end
+
+  for n in node:iter_children() do
+    local found = M.find_first_child(n, predicate)
+    if found then
+      return found
+    end
+  end
+end
+
+---@class Autotag.NodeIndices
+---@field start_row integer
+---@field start_col integer
+---@field end_row integer
+---@field end_col integer
+
+---@param node TSNode
+---@return Autotag.NodeIndices
+function M.get_node_indices(node)
+  local range = { node:range(false) }
+  return {
+    start_row = range[1],
+    start_col = range[2],
+    end_row = range[3],
+    end_col = range[4],
+  }
+end
+
+---@param node TSNode
+---@return TSNode?
+function M.first_sibling(node)
+  local parent = node:parent()
+  if not parent then
+    return
+  end
+
+  local child_count = parent:child_count()
+  if child_count == 1 then -- there are no siblings
+    return
+  end
+
+  return parent:child(0)
+end
+
+---@param node TSNode
+---@return TSNode?
+function M.last_sibling(node)
+  local parent = node:parent()
+  if not parent then
+    return
+  end
+
+  local child_count = parent:child_count()
+  if child_count == 1 then -- there are no siblings
+    return
+  end
+
+  return parent:child(child_count - 1)
+end
+
+---@param bufnr integer
+---@return TSNode?, TSNode?
+function M.get_opening_pair(bufnr)
+  local opening_node = M.get_opening_node({ bufnr = bufnr }, 5)
+  if not opening_node then
+    return
+  end
+
+  local sibling = M.last_sibling(opening_node)
+  if not sibling then
+    return
+  end
+  if not vim.list_contains(tsc.closing_node_types, sibling:type()) then
+    return
+  end
+
+  return opening_node, sibling
+end
+
+---@param bufnr integer
+---@return TSNode?, TSNode?
+function M.get_closing_pair(bufnr)
+  local closing_node = M.get_closing_node({ bufnr = bufnr }, 5)
+  if not closing_node then
+    return
+  end
+
+  local sibling = M.first_sibling(closing_node)
+  if not sibling then
+    return
+  end
+  if not vim.list_contains(tsc.opening_node_types, sibling:type()) then
+    return
+  end
+
+  return closing_node, sibling
+end
+
+---@param node TSNode
+---@return boolean
+function M.has_error(node)
+  local parent = node:parent()
+  if not parent then
+    return node:has_error()
+  end
+
+  return parent:has_error()
+end
+
+return M
