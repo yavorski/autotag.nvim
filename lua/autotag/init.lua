@@ -11,6 +11,9 @@ function AutoTag.setup_autocmd()
       if Config.options.auto_close then
         require("autotag.close-tag").init(event.buf)
       end
+      if Config.options.auto_rename then
+        require("autotag.rename-tag").init(event.buf)
+      end
     end
   })
 end
