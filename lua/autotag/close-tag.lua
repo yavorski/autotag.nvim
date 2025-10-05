@@ -35,9 +35,12 @@ local function maybe_close_tag(bufnr)
   local win = vim.api.nvim_get_current_win()
   local cursor = vim.api.nvim_win_get_cursor(win)
 
-  -- parse only current line
+  -- refresh ts state / parse only current line
   local cursor_row = cursor[1] - 1
-  parser:parse({ cursor_row, cursor_row })
+  local trees = parser:parse({ cursor_row, cursor_row })
+  if not trees or vim.tbl_isempty(trees) then
+    return
+  end
 
   -- get node at cursor position with col - 1, so we are inside the written tag
   local opening_node = ts.get_opening_node({ bufnr = bufnr, pos = { cursor[1] - 1, cursor[2] - 1 } }, 0)
@@ -58,8 +61,15 @@ local function maybe_close_tag(bufnr)
     return
   end
 
-  local closing_tag = string.format("</%s>", tag_name)
+  -- check if next char is "/" or ">" "<div|></div>"
+  local line = vim.api.nvim_buf_get_lines(bufnr, cursor[1] - 1, cursor[1], false)[1]
+  local char_after_cursor = line:sub(cursor[2] + 1, cursor[2] + 1)
+  if char_after_cursor == "/" or char_after_cursor == ">" then
+    return
+  end
 
+  -- insert closing tag
+  local closing_tag = string.format("</%s>", tag_name)
   vim.api.nvim_put({ closing_tag }, "", false, false)
   vim.api.nvim_win_set_cursor(win, cursor)
 end
@@ -99,10 +109,8 @@ function M.init(bufnr)
     group = augroup,
     buffer = bufnr,
     callback = function()
-      vim.schedule(function()
-        detach_listener(namespace_id)
-        attach_listener(bufnr, namespace_id)
-      end)
+      detach_listener(namespace_id)
+      attach_listener(bufnr, namespace_id)
     end
   })
 

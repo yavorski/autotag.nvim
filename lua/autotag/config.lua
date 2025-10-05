@@ -1,40 +1,32 @@
 local Config = {}
 
-Config.defaults = {
+Config.options = {
   filetypes = {
     "xml",
     "html",
-    -- "templ",
-    -- "htmlangular",
-    -- "typescript",
-    -- "javascript",
-    -- "typescriptreact",
-    -- "javascriptreact",
+    "templ",
+    "htmlangular",
+    "typescriptreact",
+    "javascriptreact",
   },
-
   aliases = {
-    -- razor = "html",
-    -- cshtml = "html",
-    -- htmlangular = "html",
+    razor = "html",
+    cshtml = "html",
   },
-
   auto_close = true,
   auto_rename = true,
   disable_in_macro = true,
 }
 
-Config.options = {}
-
 function Config.extend(options)
-  options = vim.tbl_deep_extend("force", Config.defaults, options or {})
+  Config.options = vim.tbl_deep_extend("force", Config.options, options or {})
 
-  for ft, _ in pairs(options.aliases) do
-    if not vim.tbl_contains(options.filetypes, ft) then
-      table.insert(options.filetypes, ft)
+  for ft, _ in pairs(Config.options.aliases) do
+    if not vim.list_contains(Config.options.filetypes, ft) then
+      table.insert(Config.options.filetypes, ft)
     end
   end
 
-  Config.options = options
   return Config.options
 end
 

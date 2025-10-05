@@ -4,10 +4,10 @@ local Config = require("autotag.config")
 local M = {}
 
 ---@param bufnr integer
----@return string
+---@return string?
 function M.get_aliased_lang(bufnr)
   local filetype = vim.api.nvim_get_option_value("filetype", { buf = bufnr })
-  return Config.options.aliases[filetype] or filetype
+  return Config.options.aliases[filetype]
 end
 
 ---@param opts vim.treesitter.get_node.Opts
@@ -17,7 +17,9 @@ end
 function M.get_node(opts, types, depth)
   -- Get aliased language if any
   local aliased_lang = M.get_aliased_lang(opts.bufnr)
-  opts = vim.tbl_extend("force", opts, { lang = aliased_lang })
+  if aliased_lang then
+    opts = vim.tbl_extend("force", opts, { lang = aliased_lang })
+  end
 
   -- If no pos is provided, use current cursor position
   if not opts.pos then
@@ -70,9 +72,10 @@ function M.find_parent(node, predicate, depth)
     return node
   end
 
-  if depth == 0 then
+  if depth < 0 then
     return
   end
+
   depth = depth - 1
 
   return M.find_parent(node:parent(), predicate, depth)
