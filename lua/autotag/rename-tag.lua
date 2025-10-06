@@ -41,7 +41,10 @@ local function update_sibling_extmarks(bufnr)
   end
 
   if ts.has_error(opening_node) or ts.has_error(closing_node) then
-    return
+    -- FIXME
+    if not aliased_lang then
+      return
+    end
   end
 
   local opening_node_identifier = ts.get_node_identifier(opening_node)
