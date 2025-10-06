@@ -48,7 +48,7 @@ local function update_sibling_extmarks(bufnr)
   end
 
   local opening_node_identifier = ts.get_node_identifier(opening_node)
-  ---@type Autotag.NodeIndices
+  ---@type AutoTag.NodeIndices
   local opening_indices
   if opening_node_identifier then
     opening_indices = ts.get_node_indices(opening_node_identifier)
@@ -59,7 +59,7 @@ local function update_sibling_extmarks(bufnr)
   end
 
   local closing_node_identifier = ts.get_node_identifier(closing_node)
-  ---@type Autotag.NodeIndices
+  ---@type AutoTag.NodeIndices
   local closing_indices
   if closing_node_identifier then
     closing_indices = ts.get_node_indices(closing_node_identifier)
@@ -165,6 +165,7 @@ local function sync_pair(bufnr, pair_id_offset)
 end
 
 ---@param bufnr integer
+---@return nil
 function M.init(bufnr)
   local augroup = vim.api.nvim_create_augroup(string.format("autotag/rename-tag-auto-init-%d", bufnr), {})
 

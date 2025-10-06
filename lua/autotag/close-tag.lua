@@ -100,6 +100,7 @@ local function attach_listener(bufnr, namespace_id)
 end
 
 ---@param bufnr integer
+---@return nil
 function M.init(bufnr)
   local group_key = string.format("autotag/close-tag-%d", bufnr)
   local augroup = vim.api.nvim_create_augroup(group_key, {})

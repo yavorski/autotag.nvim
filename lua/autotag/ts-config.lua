@@ -1,3 +1,9 @@
+---@class AutoTag.TSConfig
+---@field opening_node_types string[]
+---@field identifier_node_types string[]
+---@field closing_node_types string[]
+
+---@type AutoTag.TSConfig
 return {
   opening_node_types = {
     -- html

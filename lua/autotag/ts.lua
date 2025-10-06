@@ -101,14 +101,14 @@ function M.find_first_child(node, predicate)
   end
 end
 
----@class Autotag.NodeIndices
+---@class AutoTag.NodeIndices
 ---@field start_row integer
 ---@field start_col integer
 ---@field end_row integer
 ---@field end_col integer
 
 ---@param node TSNode
----@return Autotag.NodeIndices
+---@return AutoTag.NodeIndices
 function M.get_node_indices(node)
   local range = { node:range(false) }
   return {

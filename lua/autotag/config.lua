@@ -1,5 +1,16 @@
+---@class AutoTag.Options
+---@field filetypes? string[]
+---@field aliases? table<string, string>
+---@field auto_close? boolean
+---@field auto_rename? boolean
+---@field disable_in_macro? boolean
+
+---@class Config
+---@field options AutoTag.Options
+---@field extend fun(options: AutoTag.Options?): AutoTag.Options
 local Config = {}
 
+---@type AutoTag.Options
 Config.options = {
   filetypes = {
     "xml",
@@ -18,6 +29,8 @@ Config.options = {
   disable_in_macro = true,
 }
 
+---@param options AutoTag.Options?
+---@return AutoTag.Options
 function Config.extend(options)
   Config.options = vim.tbl_deep_extend("force", Config.options, options or {})
 

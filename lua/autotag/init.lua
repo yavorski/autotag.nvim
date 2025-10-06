@@ -1,6 +1,10 @@
+---@class AutoTag
+---@field setup_autocmd fun(): nil
+---@field setup fun(options: AutoTag.Options?): nil
 local AutoTag = {}
 local Config = require("autotag.config")
 
+---@return nil
 function AutoTag.setup_autocmd()
   local augroup = vim.api.nvim_create_augroup("autotag/init-buffer", {})
 
@@ -18,6 +22,8 @@ function AutoTag.setup_autocmd()
   })
 end
 
+---@param options AutoTag.Options?
+---@return nil
 function AutoTag.setup(options)
   Config.extend(options)
   AutoTag.setup_autocmd()
