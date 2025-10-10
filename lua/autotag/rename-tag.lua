@@ -115,6 +115,28 @@ local function get_cursor_identifier_extmark(bufnr)
   return iden_ext[1]
 end
 
+---Validates if a buffer position is within valid bounds
+---@param bufnr integer The buffer number to check
+---@param row integer The row position (0-indexed)
+---@param col integer The column position (0-indexed)
+---@param is_end_pos boolean Whether this is an end position (allows col = line_length + 1)
+---@return boolean is_valid True if the position is within buffer bounds
+local function is_position_valid(bufnr, row, col, is_end_pos)
+  local line_count = vim.api.nvim_buf_line_count(bufnr)
+  if row >= line_count or row < 0 then
+    return false
+  end
+
+  local line_text = vim.api.nvim_buf_get_lines(bufnr, row, row + 1, false)[1]
+  if not line_text then
+    return false
+  end
+
+  -- For end positions, allow col to be line_length + 1 (past end of line)
+  local max_col = is_end_pos and (#line_text + 1) or #line_text
+  return col >= 0 and col <= max_col
+end
+
 ---@param bufnr integer
 ---@param pair_id_offset integer
 local function sync_pair(bufnr, pair_id_offset)
@@ -122,10 +144,18 @@ local function sync_pair(bufnr, pair_id_offset)
   if not ext1 then
     return
   end
-  local ext2 = vim.api.nvim_buf_get_extmark_by_id(bufnr, NS_EXTMARKS, ext1[1] + pair_id_offset, {
-    details = true,
-  })
+
+  local ext2 = vim.api.nvim_buf_get_extmark_by_id(bufnr, NS_EXTMARKS, ext1[1] + pair_id_offset, { details = true })
   if not ext2[1] then
+    return
+  end
+
+  -- Comprehensive bounds validation
+  if not is_position_valid(bufnr, ext1[2], ext1[3], false) or
+    not is_position_valid(bufnr, ext1[4].end_row, ext1[4].end_col, true) or
+    not is_position_valid(bufnr, ext2[1], ext2[2], false) or
+    not is_position_valid(bufnr, ext2[3].end_row, ext2[3].end_col, true) then
+    clear_extmarks(bufnr)
     return
   end
 
