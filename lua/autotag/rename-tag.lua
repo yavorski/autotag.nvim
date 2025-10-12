@@ -19,6 +19,33 @@ local function make_extmark_options(opts)
   }, opts)
 end
 
+---@param delimiter? string
+---@return boolean
+local function is_cursor_on_delimiter(delimiter)
+  local char = vim.api.nvim_get_current_line():sub(vim.fn.col("."), vim.fn.col("."))
+
+  if delimiter ~= nil then
+    return char == delimiter
+  end
+
+  return char == "<" or char == "/" or char == ">"
+end
+
+---@param indices AutoTag.NodeIndices
+---@return boolean
+local function is_cursor_on_identifier(indices)
+  local cursor = vim.api.nvim_win_get_cursor(0)
+  local cursor_row, cursor_col = cursor[1] - 1, cursor[2]
+  local mode = vim.fn.mode()
+
+  local end_col = indices.end_col
+  if mode == "i" or mode == "R" then
+    end_col = end_col + 1
+  end
+
+  return cursor_row >= indices.start_row and cursor_row <= indices.end_row and cursor_col >= indices.start_col and cursor_col < end_col
+end
+
 ---@param bufnr integer
 local function update_sibling_extmarks(bufnr)
   local aliased_lang = ts.get_aliased_lang(bufnr)
@@ -67,6 +94,18 @@ local function update_sibling_extmarks(bufnr)
     closing_indices = ts.get_node_indices(closing_node)
     closing_indices.start_col = closing_indices.start_col + 2
     closing_indices.end_col = closing_indices.end_col - 1
+  end
+
+  -- Prevents deletion of the end tag when using "dd"
+  -- Only create extmarks if cursor is on tag identifier, not on delimiters like '<' or '>'
+  if aliased_lang then
+    if is_cursor_on_delimiter("<") then
+      return
+    end
+  else
+    if not is_cursor_on_identifier(opening_indices) and not is_cursor_on_identifier(closing_indices) then
+      return
+    end
   end
 
   clear_extmarks(bufnr)
@@ -206,6 +245,9 @@ function M.init(bufnr)
     callback = function(ev)
       if Config.options.disable_in_macro and vim.fn.reg_recording() ~= "" then
         return
+      end
+      if not get_cursor_identifier_extmark(ev.buf) then
+        update_sibling_extmarks(ev.buf)
       end
       sync_pair(ev.buf, 1)
       sync_pair(ev.buf, -1)
