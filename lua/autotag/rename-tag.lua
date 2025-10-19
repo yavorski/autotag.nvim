@@ -234,21 +234,37 @@ local function sync_pair(bufnr, pair_id_offset)
 end
 
 ---@param bufnr integer
+---@return boolean
+local function should_init(bufnr)
+  if vim.api.nvim_get_current_buf() ~= bufnr then
+    return false
+  end
+
+  if Config.options.disable_in_macro and vim.fn.reg_recording() ~= "" then
+    return false
+  end
+
+  return true
+end
+
+---@param bufnr integer
 ---@return nil
 function M.init(bufnr)
-  local augroup = vim.api.nvim_create_augroup(string.format("autotag/rename-tag-auto-init-%d", bufnr), {})
+  local augroup = vim.api.nvim_create_augroup(string.format("autotag/rename-tag-%d", bufnr), {})
 
   -- Sync/Rename tag pairs during editing
   vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
     group = augroup,
     buffer = bufnr,
     callback = function(ev)
-      if Config.options.disable_in_macro and vim.fn.reg_recording() ~= "" then
+      if not should_init(ev.buf) then
         return
       end
+
       if not get_cursor_identifier_extmark(ev.buf) then
         update_sibling_extmarks(ev.buf)
       end
+
       sync_pair(ev.buf, 1)
       sync_pair(ev.buf, -1)
     end
@@ -259,11 +275,7 @@ function M.init(bufnr)
     group = augroup,
     buffer = bufnr,
     callback = vim.schedule_wrap(function(ev)
-      if vim.api.nvim_get_current_buf() ~= ev.buf then
-        return
-      end
-
-      if Config.options.disable_in_macro and vim.fn.reg_recording() ~= "" then
+      if not should_init(ev.buf) then
         return
       end
 
