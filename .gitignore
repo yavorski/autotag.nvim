@@ -1,5 +1,6 @@
-tmp
 tmp/
+deps/mini.test
+deps/nvim-treesitter
 
 # Compiled Lua sources
 luac.out
