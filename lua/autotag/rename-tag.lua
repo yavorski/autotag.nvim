@@ -10,6 +10,91 @@ local function clear_extmarks(bufnr)
   vim.api.nvim_buf_clear_namespace(bufnr, NS_EXTMARKS, 0, -1)
 end
 
+---@param text1 string
+---@param text2 string
+---@return boolean true if extmarks should be cleared (stale), false otherwise
+local function are_extmarks_stale(text1, text2)
+  -- Detect stale extmarks: if we're syncing between completely different tag types
+  -- (like "div" and "p"), this suggests extmarks became stale after dd/u operations
+  if text1 == text2 or text1 == "" or text2 == "" then
+    return false
+  end
+
+  local mode = vim.fn.mode()
+
+  -- In replace mode or insert mode, allow complete tag name changes (that's normal)
+  -- Only validate for stale extmarks in normal mode
+  if mode ~= "n" then
+    return false
+  end
+
+  -- Check if the tag names look completely unrelated (not a partial edit)
+  local text1_clean = text1:gsub("^%s*", ""):gsub("%s.*$", "")
+  local text2_clean = text2:gsub("^%s*", ""):gsub("%s.*$", "")
+
+  -- Only clear if they're completely different words with no shared characters
+  -- This catches cases like "div" vs "p" but allows "div" vs "riv" or "daviv"
+  if text1_clean == text2_clean or
+     not text1_clean:match("^[a-zA-Z][a-zA-Z0-9%-]*$") or
+     not text2_clean:match("^[a-zA-Z][a-zA-Z0-9%-]*$") then
+    return false
+  end
+
+  -- Special case: allow single-character to single-character transitions
+  -- (like "p" → "a"), but still block multi-char to single-char if unrelated
+  if #text1_clean == 1 and #text2_clean == 1 then
+    -- Allow any single-character to single-character tag change (p→a, i→b, etc.)
+    return false
+  elseif (#text1_clean == 1 and #text2_clean > 1) or (#text2_clean == 1 and #text1_clean > 1) then
+    -- Mixed single/multi character - check if they're plausibly related
+    -- Allow if the single char appears in the multi-char word
+    local single_char = #text1_clean == 1 and text1_clean or text2_clean
+    local multi_char = #text1_clean > 1 and text1_clean or text2_clean
+    if not multi_char:find(single_char) then
+      return true
+    end
+    return false
+  else
+    -- Check if they share any significant substring (indicating partial edit)
+    -- For strings of similar length, also check single character overlaps
+    local has_shared_content = false
+
+    -- First check for 2+ character substrings (stronger evidence of relation)
+    for i = 1, #text1_clean - 1 do
+      if text2_clean:find(text1_clean:sub(i, i + 1)) then
+        has_shared_content = true
+        break
+      end
+    end
+
+    -- If not found yet, check substrings of text2_clean in text1_clean
+    if not has_shared_content then
+      for i = 1, #text2_clean - 1 do
+        if text1_clean:find(text2_clean:sub(i, i + 1)) then
+          has_shared_content = true
+          break
+        end
+      end
+    end
+
+    -- If no 2+ char substrings but strings are similar length (suggesting single-char edit),
+    -- check if they share significant single characters (at least 2 common chars)
+    if not has_shared_content and math.abs(#text1_clean - #text2_clean) <= 1 then
+      local common_chars = 0
+      for i = 1, #text1_clean do
+        if text2_clean:find(text1_clean:sub(i, i)) then
+          common_chars = common_chars + 1
+        end
+      end
+      if common_chars >= 2 then
+        has_shared_content = true
+      end
+    end
+
+    return not has_shared_content
+  end
+end
+
 ---@param opts vim.api.keyset.set_extmark
 local function make_extmark_options(opts)
   return vim.tbl_extend("force", {
@@ -151,7 +236,16 @@ local function get_cursor_identifier_extmark(bufnr)
     return
   end
 
-  return iden_ext[1]
+  local ext = iden_ext[1]
+
+  -- Validate that the extmark points to content that makes sense at the current cursor
+  local ext_text = vim.api.nvim_buf_get_text(bufnr, ext[2], ext[3], ext[4].end_row, ext[4].end_col, {})[1]
+  if not ext_text or ext_text:find("/") or ext_text:find("<") or ext_text:find(">") then
+    clear_extmarks(bufnr)
+    return
+  end
+
+  return ext
 end
 
 ---Validates if a buffer position is within valid bounds
@@ -209,6 +303,22 @@ local function sync_pair(bufnr, pair_id_offset)
     return
   end
 
+  local text2 = vim.api.nvim_buf_get_text(bufnr, ext2[1], ext2[2], ext2[3].end_row, ext2[3].end_col, {})[1]
+  if not text2 then
+    clear_extmarks(bufnr)
+    return
+  end
+
+  if text2:find("/") or text2:find("<") or text2:find(">") then
+    clear_extmarks(bufnr)
+    return
+  end
+
+  if are_extmarks_stale(text1, text2) then
+    clear_extmarks(bufnr)
+    return
+  end
+
   local before, after = text1:match("(.-) (.*)")
   if before and after then
     text1 = before
@@ -225,7 +335,6 @@ local function sync_pair(bufnr, pair_id_offset)
     )
   end
 
-  local text2 = vim.api.nvim_buf_get_text(bufnr, ext2[1], ext2[2], ext2[3].end_row, ext2[3].end_col, {})[1]
   if text1 == text2 then
     return
   end
