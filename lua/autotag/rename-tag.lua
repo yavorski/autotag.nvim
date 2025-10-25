@@ -238,6 +238,23 @@ local function get_cursor_identifier_extmark(bufnr)
 
   local ext = iden_ext[1]
 
+  -- Check if the extmark positions are still valid in the buffer
+  local line_count = vim.api.nvim_buf_line_count(bufnr)
+  if ext[2] >= line_count or ext[4].end_row >= line_count then
+    clear_extmarks(bufnr)
+    return
+  end
+
+  -- Get the actual line content to validate column bounds
+  local start_line = vim.api.nvim_buf_get_lines(bufnr, ext[2], ext[2] + 1, false)[1]
+  local end_line = vim.api.nvim_buf_get_lines(bufnr, ext[4].end_row, ext[4].end_row + 1, false)[1]
+
+  if not start_line or not end_line or
+     ext[3] >= #start_line or ext[4].end_col > #end_line then
+    clear_extmarks(bufnr)
+    return
+  end
+
   -- Validate that the extmark points to content that makes sense at the current cursor
   local ext_text = vim.api.nvim_buf_get_text(bufnr, ext[2], ext[3], ext[4].end_row, ext[4].end_col, {})[1]
   if not ext_text or ext_text:find("/") or ext_text:find("<") or ext_text:find(">") then
@@ -336,6 +353,12 @@ local function sync_pair(bufnr, pair_id_offset)
   end
 
   if text1 == text2 then
+    return
+  end
+
+  -- Abort sync if ext2 points to column 0 - stale extmarks after line deletion with "dd"
+  if ext2[2] == 0 then
+    clear_extmarks(bufnr)
     return
   end
 
