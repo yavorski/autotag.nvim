@@ -4,6 +4,7 @@
 ---@field auto_close? boolean
 ---@field auto_rename? boolean
 ---@field disable_in_macro? boolean
+---@field disable_in_multicursor? boolean
 
 ---@class Config
 ---@field options AutoTag.Options
@@ -27,6 +28,7 @@ Config.options = {
   auto_close = true,
   auto_rename = true,
   disable_in_macro = true,
+  disable_in_multicursor = true
 }
 
 ---@param options AutoTag.Options?

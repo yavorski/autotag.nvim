@@ -93,6 +93,12 @@ local function attach_listener(bufnr, namespace_id)
       return
     end
 
+    if Config.options.disable_in_multicursor then
+      if MultiCursor ~= nil and MultiCursor.hasCursors() then
+        return
+      end
+    end
+
     vim.schedule(function()
       maybe_close_tag(bufnr)
     end)

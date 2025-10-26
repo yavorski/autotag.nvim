@@ -344,6 +344,12 @@ local function should_init(bufnr)
     return false
   end
 
+  if Config.options.disable_in_multicursor then
+    if MultiCursor ~= nil and MultiCursor.hasCursors() then
+      return
+    end
+  end
+
   return true
 end
 
