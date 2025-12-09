@@ -191,6 +191,10 @@ T["razor-close-tags"] = function(ft, ts_lang)
 end
 
 T["razor-close-tags-complex"] = function(ft, ts_lang)
+  if ft == "htmlangular" and ts_lang == "angular" then
+    MiniTest.skip("New angular parser - 12.12.2025")
+  end
+
   init_close_tag(ft, ts_lang)
 
   local content = [[
