@@ -41,6 +41,8 @@ end
 ---@param depth integer
 ---@return TSNode?
 function M.get_opening_node(opts, depth)
+  -- TODO test with `ignore_injections = false`
+  -- opts = vim.tbl_extend("force", opts, { ignore_injections = false })
   return M.get_node(opts, tsc.opening_node_types, depth)
 end
 
