@@ -36,6 +36,10 @@ Config.options = {
 function Config.extend(options)
   Config.options = vim.tbl_deep_extend("force", Config.options, options or {})
 
+  if type(Config.options.aliases) ~= "table" then
+    Config.options.aliases = {}
+  end
+
   for ft, _ in pairs(Config.options.aliases) do
     if not vim.list_contains(Config.options.filetypes, ft) then
       table.insert(Config.options.filetypes, ft)

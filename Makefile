@@ -4,7 +4,7 @@ test:
 
 # Run test from file at `$FILE` environment variable
 test-file:
-	nvim --headless --noplugin -u ./scripts/minimal_init.lua -c "lua MiniTest.run_file('$(FILE)')"
+	nvim --headless --noplugin -u ./scripts/minimal-init.lua -c "lua MiniTest.run_file('$(FILE)')"
 
 # Download dependencies
 install:

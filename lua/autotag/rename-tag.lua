@@ -297,7 +297,15 @@ local function sync_pair(bufnr, pair_id_offset)
 
     -- Check if we have '<' before and '>' after (or start of line)
     local has_open_bracket = start_col > 0 and (line:sub(start_col, start_col) == '<' or line:sub(start_col - 1, start_col - 1) == '<')
-    local has_close_bracket = end_col <= #line and (line:sub(end_col + 1, end_col + 1) == '>' or line:find('>', end_col))
+
+    -- After the identifier we must reach a '>' before any '<' on the same line
+    -- (attributes may sit between the identifier and '>')
+    local has_close_bracket = false
+    if end_col <= #line then
+      local next_gt = line:find('>', end_col + 1, true)
+      local next_lt = line:find('<', end_col + 1, true)
+      has_close_bracket = next_gt ~= nil and (next_lt == nil or next_gt < next_lt)
+    end
 
     return has_open_bracket and has_close_bracket
   end
@@ -346,7 +354,7 @@ local function should_init(bufnr)
 
   if Config.options.disable_in_multicursor then
     if MultiCursor ~= nil and MultiCursor.hasCursors() then
-      return
+      return false
     end
   end
 

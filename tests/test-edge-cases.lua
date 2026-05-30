@@ -6,7 +6,7 @@ local T = MiniTest.new_set({
     pre_case = function()
       child.restart({ "-u", "scripts/minimal-init.lua" })
       child.lua([[AC = require("autotag.close-tag")]])
-      child.lua([[AR = require("autotag.close-tag")]])
+      child.lua([[AR = require("autotag.rename-tag")]])
     end,
     post_once = child.stop
   },
