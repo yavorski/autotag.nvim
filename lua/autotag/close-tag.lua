@@ -20,39 +20,100 @@ local void_elements = {
   "wbr"
 }
 
+---@param line string
+---@param col integer
+---@return string?
+local function detect_tag_name_from_line(line, col)
+  -- We are only called right after the user typed ">"; cursor is sitting
+  -- just after that ">". Look at the portion of the line up to the cursor.
+  local pre = line:sub(1, col)
+  if pre:sub(-1) ~= ">" then
+    return
+  end
+
+  -- Find the start index of the most recent "<...>" segment that ends
+  -- right at the cursor. We disallow nested "<" or ">" inside.
+  local start_idx = pre:match("()<[^<>]*>$")
+  if not start_idx then
+    return
+  end
+
+  local segment = pre:sub(start_idx)
+
+  -- Skip self-closing "<tag ... />"
+  if segment:match("/>$") then
+    return
+  end
+
+  -- Skip closing tag "</tag>"
+  if segment:sub(2, 2) == "/" then
+    return
+  end
+
+  -- Skip "<!doctype ...>", comments, processing instructions, etc.
+  local first = segment:sub(2, 2)
+  if first == "!" or first == "?" then
+    return
+  end
+
+  -- Extract the tag name. Allow standard HTML/XML name characters
+  -- (letters, digits, dashes, underscores, dots, colons).
+  local tag_name = segment:match("^<([%a_][%w%-_:%.]*)")
+  return tag_name
+end
+
 ---@param bufnr integer
 local function maybe_close_tag(bufnr)
   if bufnr ~= vim.api.nvim_get_current_buf() then
     return
   end
 
-  local aliased_lang = ts.get_aliased_lang(bufnr)
-  local ok, parser = pcall(vim.treesitter.get_parser, bufnr, aliased_lang)
-  if not ok or not parser then
+  local win = vim.api.nvim_get_current_win()
+  local cursor = vim.api.nvim_win_get_cursor(win)
+  local line = vim.api.nvim_buf_get_lines(bufnr, cursor[1] - 1, cursor[1], false)[1]
+  if not line then
     return
   end
 
-  local win = vim.api.nvim_get_current_win()
-  local cursor = vim.api.nvim_win_get_cursor(win)
+  local tag_name
+
+  -- Try treesitter detection first. In files where the parser handles
+  -- the surrounding context well, this gives us the most accurate node.
+  local aliased_lang = ts.get_aliased_lang(bufnr)
+  local ok, parser = pcall(vim.treesitter.get_parser, bufnr, aliased_lang)
+  if not ok or not parser then
+    -- No parser available for this buffer: this is an unsupported
+    -- filetype - do nothing (don't even fall back to the regex path).
+    return
+  end
 
   -- refresh ts state / parse only current line
   local cursor_row = cursor[1] - 1
   local trees = parser:parse({ cursor_row, cursor_row })
-  if not trees or vim.tbl_isempty(trees) then
-    return
+  if trees and not vim.tbl_isempty(trees) then
+    -- get node at cursor position with col - 1, so we are inside the written tag
+    local opening_node = ts.get_opening_node(
+      { bufnr = bufnr, pos = { cursor[1] - 1, cursor[2] - 1 } },
+      0
+    )
+    if opening_node then
+      local opening_node_identifier = ts.get_node_identifier(opening_node)
+      if opening_node_identifier then
+        tag_name = vim.treesitter.get_node_text(opening_node_identifier, bufnr)
+      end
+    end
   end
 
-  -- get node at cursor position with col - 1, so we are inside the written tag
-  local opening_node = ts.get_opening_node({ bufnr = bufnr, pos = { cursor[1] - 1, cursor[2] - 1 } }, 0)
-  if not opening_node then
-    return
+  -- Fallback: when tree-sitter cannot recognise the opening tag (e.g. the
+  -- cursor sits inside an ERROR node because the surrounding file confuses
+  -- the parser, such as Razor/cshtml mixing C# and HTML), recover the tag
+  -- name from the textual content of the line. This keeps the auto-close
+  -- behaviour working in files with imperfect parses.
+  if not tag_name or tag_name == "" then
+    tag_name = detect_tag_name_from_line(line, cursor[2])
   end
 
-  -- get id and tag name
-  local opening_node_identifier = ts.get_node_identifier(opening_node)
-  local tag_name = opening_node_identifier and vim.treesitter.get_node_text(opening_node_identifier, bufnr) or ""
-
-  if tag_name == "" then
+  if not tag_name or tag_name == "" then
     return
   end
 
@@ -62,7 +123,6 @@ local function maybe_close_tag(bufnr)
   end
 
   -- check if next char is "/" or ">" "<div|></div>"
-  local line = vim.api.nvim_buf_get_lines(bufnr, cursor[1] - 1, cursor[1], false)[1]
   local char_after_cursor = line:sub(cursor[2] + 1, cursor[2] + 1)
   if char_after_cursor == "/" or char_after_cursor == ">" then
     return

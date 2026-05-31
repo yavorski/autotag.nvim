@@ -271,6 +271,102 @@ T["razor-close-tags-complex"] = function(ft, ts_lang)
   expect.equality(result, expected)
 end
 
+T["razor-close-tags-after-code-blocks"] = function(ft, ts_lang)
+  if ft ~= "razor" and ft ~= "html" then
+    MiniTest.skip("razor/html-specific scenario")
+  end
+
+  init_close_tag(ft, ts_lang)
+
+  -- Minimal repro of the cshtml constructs that previously left the
+  -- treesitter parser in an ERROR state at the cursor position:
+  --   * @functions { ... } block with C# method bodies & generics
+  --   * @{ ... } code block
+  --   * inline @if (...) { ... } mixed with HTML
+  --   * @(expr) interpolation
+  --   * <script> block containing a Razor @if wrapper
+  -- Each blank line listed in `targets` below must auto-close `<div>`.
+  set_lines({
+    "@using System",                                  -- 1
+    "@model Foo",                                     -- 2
+    "",                                               -- 3  <- target
+    "@functions {",                                   -- 4
+    "  static string Hello() { return \"hi\"; }",     -- 5
+    "  static bool Test(int x) => x > 0;",            -- 6
+    "}",                                              -- 7
+    "",                                               -- 8  <- target
+    "@{",                                             -- 9
+    "  var list = new List<int>();",                  -- 10
+    "  var n = list.Count;",                          -- 11
+    "}",                                              -- 12
+    "",                                               -- 13 <- target
+    "<div class=\"outer @cls\">",                     -- 14
+    "  @if (true) {",                                 -- 15
+    "    <span>@x</span>",                            -- 16
+    "  }",                                            -- 17
+    "",                                               -- 18 <- target
+    "</div>",                                         -- 19
+    "",                                               -- 20 <- target
+    "@if (true) {",                                   -- 21
+    "  <script>",                                     -- 22
+    "    var f = () => { return 1; };",               -- 23
+    "  </script>",                                    -- 24
+    "}",                                              -- 25
+    "",                                               -- 26 <- target
+  })
+
+  local targets = { 3, 8, 13, 18, 20, 26 }
+
+  for _, line in ipairs(targets) do
+    child.cmd("normal! " .. line .. "G")
+    child.cmd("startinsert!")
+    child.type_keys("<", "div", ">")
+    child.cmd("stopinsert")
+  end
+
+  local lines = get_lines()
+  for _, line in ipairs(targets) do
+    expect.equality(lines[line], "<div></div>")
+  end
+end
+
+-- FIXME: The regex fallback in detect_tag_name_from_line (close-tag.lua) uses the pattern "()<[^<>]*>$" which
+-- rejects any ">" inside the tag, including ">" that appears inside a quoted attribute value such as title="x > y".
+-- When TS is in ERROR state and the user types such a tag, the fallback returns nil and no closing tag is inserted.
+--
+-- Fix: strip quoted attribute values before applying the pattern, e.g.:
+--   local safe = pre:gsub('"[^"]*"', '""'):gsub("'[^']*'", "''")
+--   local start_idx = safe:match("()<[^<>]*>$")
+-- Then extract the tag name from the original `pre` using the same start_idx.
+T["razor-close-tags-fallback-attr-with-gt"] = function(ft, ts_lang)
+  if ft ~= "razor" and ft ~= "html" then
+    MiniTest.skip("razor/html-specific scenario")
+  end
+
+  init_close_tag(ft, ts_lang)
+
+  -- Force the TS parser into ERROR state by prefixing Razor C# blocks, then type a tag whose attribute value contains ">".
+  -- The regex fallback is the only thing that can close the tag here, and it currently cannot because [^<>]* disallows ">" inside the tag segment.
+  set_lines({
+    "@{",
+    "  var x = 1;",
+    "}",
+    "",  -- line 4: cursor target, TS will be in ERROR state here
+  })
+
+  child.cmd("normal! 4G")
+  child.cmd("startinsert!")
+
+  -- type <a title="x > y"> -- the ">" inside the quoted attr breaks the regex
+  child.type_keys([[<a title="x > y">]])
+  child.cmd("stopinsert")
+
+  local lines = get_lines()
+  -- CURRENTLY FAILS: fallback regex [^<>]* cannot parse attrs containing ">" so no closing tag is inserted and the result is just the raw opening tag.
+  -- The correct expected value would be: [[<a title="x > y"></a>]]
+  expect.equality(lines[4], [[<a title="x > y"></a>]])
+end
+
 T["many-tags-on-same-line"] = function(ft, ts_lang)
   init_close_tag(ft, ts_lang)
 
