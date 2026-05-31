@@ -271,6 +271,77 @@ T["razor-close-tags-complex"] = function(ft, ts_lang)
   expect.equality(result, expected)
 end
 
+T["many-tags-on-same-line"] = function(ft, ts_lang)
+  init_close_tag(ft, ts_lang)
+
+  -- Each case: { initial_line, cursor_col_0idx, type_keys, expected_line }
+  local cases = {
+    -- 5 deeply nested tags typed from an empty line
+    { "", 0,
+      { "<", "div", ">", "<", "div", ">", "<", "div", ">", "<", "div", ">", "<", "div", ">" },
+      "<div><div><div><div><div></div></div></div></div></div>" },
+
+    -- 4 different tags typed back-to-back
+    { "", 0,
+      { "<", "section", ">", "<", "article", ">", "<", "header", ">", "<", "h1", ">" },
+      "<section><article><header><h1></h1></header></article></section>" },
+
+    -- insert a new pair BEFORE an existing matched pair
+    { "<span></span>", 0,
+      { "<", "div", ">" },
+      "<div></div><span></span>" },
+
+    -- insert a new pair AFTER an existing matched pair
+    { "<span></span>", 13,
+      { "<", "div", ">" },
+      "<span></span><div></div>" },
+
+    -- insert a new pair BETWEEN two existing matched pairs
+    { "<a></a><b></b>", 7,
+      { "<", "div", ">" },
+      "<a></a><div></div><b></b>" },
+
+    -- insert a tag inside the content of an existing pair: <div>|</div>
+    { "<div></div>", 5,
+      { "<", "span", ">" },
+      "<div><span></span></div>" },
+
+    -- type opening tag immediately BEFORE an orphan closing tag
+    { "</div>", 0,
+      { "<", "div", ">" },
+      "<div></div></div>" },
+
+    -- void + real + self-closing + real on the same line
+    { "", 0,
+      { "<", "br", ">", "<", "div", ">", "<", [[img src="x"]], "/>", "<", "span", ">" },
+      [[<br><div><img src="x"/><span></span></div>]] },
+
+    -- preceding tag has '>' inside a quoted attribute value
+    { [[<a title="a > b">x</a>]], 22,
+      { "<", "div", ">" },
+      [[<a title="a > b">x</a><div></div>]] },
+  }
+
+  for _, case in ipairs(cases) do
+    local initial, col, keys, expected = case[1], case[2], case[3], case[4]
+    set_lines({ initial })
+    child.api.nvim_win_set_cursor(winnr(), { 1, col })
+    if col == 0 then
+      child.cmd("startinsert")
+    else
+      child.cmd("startinsert!")
+      if col ~= #initial then
+        child.api.nvim_win_set_cursor(winnr(), { 1, col })
+      end
+    end
+    child.type_keys(unpack(keys))
+    child.cmd("stopinsert")
+
+    local lines = get_lines()
+    expect.equality(lines[1], expected)
+  end
+end
+
 T["close-custom-tags"] = function(ft, ts_lang)
   init_close_tag(ft, ts_lang)
 
